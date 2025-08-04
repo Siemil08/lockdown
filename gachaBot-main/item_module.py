@@ -129,15 +129,17 @@ def handle_inventory(conn, username):
         cursor.execute("SELECT inventory FROM settlements WHERE name = %s", (username,))
         row = cursor.fetchone()
         if not row:
-            return f"{username}님은 인증된 사용자가 아닙니다."
+            return split_message(f"{username}님은 인증된 사용자가 아닙니다.")
         
         item_name = parse_item_name(row.get('inventory', ''))
         if not item_name:
-            return f"{username}님이 획득한 호감도 아이템은 없습니다."
+            return split_message(f"{username}님이 획득한 호감도 아이템은 없습니다.")
         
         item_counts = Counter(item_name)
         result_lines = [f"{item} x {count}" for item, count in item_counts.items()]
-        return f"{username}님이 소지한 아이템 목록은 다음과 같습니다:\n" + '\n'.join(result_lines)
+        result_text = f"{username}님이 소지한 아이템 목록은 다음과 같습니다:\n" + '\n'.join(result_lines)
+        
+        return split_message(result_text)
 
 
 # 아이템 수량 검색
