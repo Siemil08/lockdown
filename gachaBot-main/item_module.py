@@ -53,6 +53,17 @@ def split_message(text, limit=500):
         chunks.append(current.strip())
     return chunks
 
+def get_object_particle(word):
+    """단어에 맞는 목적격 조사 '을/를' 반환"""
+    if not word:
+        return '를'
+    last_char = word[-1]
+    # 유니코드 한글인지 확인
+    if not ('가' <= last_char <= '힣'):
+        return '를'
+    base_code = ord(last_char) - ord('가')
+    jongseong = base_code % 28
+    return '을' if jongseong != 0 else '를'
         
 # 가챠
 def handle_gacha(conn, username, content):
@@ -92,10 +103,9 @@ def handle_gacha(conn, username, content):
         acquired = random.choices(item_pool, k=count)
 
         # 결과 메시지 구성 (한 줄: 아이템명 - answer_list)
-        result_lines = []
-        for item in acquired:
-            answer = gacha_map.get(item, '')
-            result_lines.append(f"{item} - {answer}" if answer else item)
+        result_lines = acquired
+        acquired_str = ', '.join(result_lines)
+        particle = get_object_particle(result_lines[-1])
 
         # 기존 소지품에 추가
         new_item_name = item_name + (', ' if item_name else '') + ', '.join(acquired)
@@ -107,7 +117,7 @@ def handle_gacha(conn, username, content):
         conn.commit()
 
     # 최종 출력 메시지
-    full_message = f"{username}님, {count}회 아이템 뽑기를 진행합니다...\n{'\n'.join(result_lines)}"
+    full_message = f"{username}님, {count}회 가챠를 진행합니다...\n{acquired_str}{particle} 획득하였습니다."
     messages = split_message(full_message)
 
     return messages
