@@ -448,4 +448,8 @@ def handle_present(conn, giver, content):
     if no_item_name:
         result += f"\n선물 실패! {giver}님이 소지하지 않은 호감도 아이템이 있습니다: {', '.join(no_item_name)}"
 
+    # 현재 호감 점수 추가
+    current_favor_score = favor_score_dict.get(giver, 0)
+    result += f"\n현재 {receiver}님이 {giver}님에게 느끼는 호감도는 {current_favor_score}점입니다."
+
     return result.strip()
