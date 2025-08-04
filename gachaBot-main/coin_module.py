@@ -90,40 +90,42 @@ def handle_balance(conn, mastodon, mastodon_id):
 
 def handle_coin_transfer(conn, giver_id, content):
     """
-    코인 양도 처리 (마스토돈 아이디 기준)
-    - 입력 형식: [코인 양도] [받는 사람] [금액]
-    - giver_id, receiver_id 는 마스토돈 아이디
-    - 인증 확인 후 코인 양도
-    - 메시지는 이름(name) 기준으로 출력
+    코인 양도 처리 (giver_id는 마스토돈 아이디, 받는 사람은 이름)
+    - 입력 형식: [코인 양도] [받는 사람(이름)] [금액]
+    - 받는 사람 이름으로 auth에서 mastodon_id 조회 후 코인 양도 처리
+    - 메시지는 이름 기준으로 출력
     """
     match = re.search(r'\[코인\s*양도\]\s*\[([^\[\]]+)\]\s*\[(\d+)\]', content)
     if not match:
-        return "입력 형식이 올바르지 않습니다.\n예: [코인 양도] [받는 사람] [10]"
+        return "입력 형식이 올바르지 않습니다.\n예: [코인 양도] [받는 사람 이름] [10]"
 
-    receiver_id = match.group(1).strip()
+    receiver_name = match.group(1).strip()
     amount = int(match.group(2))
 
     with conn.cursor() as cursor:
-        cursor.execute(
-            "SELECT mastodon_id, name, coin FROM auth WHERE mastodon_id IN (%s, %s)",
-            (giver_id, receiver_id)
-        )
-        users = cursor.fetchall()
+        # 양도자 정보 조회
+        cursor.execute("SELECT mastodon_id, name, coin FROM auth WHERE mastodon_id = %s", (giver_id,))
+        giver = cursor.fetchone()
+        if not giver:
+            return "양도자 인증이 되어 있지 않습니다."
 
-        user_data = {row['mastodon_id']: {'name': row['name'], 'coin': row['coin']} for row in users}
+        # 받는 사람 mastodon_id 조회 (이름으로 정확 일치 검색)
+        cursor.execute("SELECT mastodon_id, name, coin FROM auth WHERE name = %s", (receiver_name,))
+        receiver = cursor.fetchone()
+        if not receiver:
+            return f"받는 사람 '{receiver_name}' 님을 찾을 수 없습니다."
 
-        if giver_id not in user_data or receiver_id not in user_data:
-            return "인증되지 않은 사용자입니다."
+        # 소지금 부족 확인
+        if giver['coin'] < amount:
+            return f"{giver['name']}님의 소지금이 부족하여 코인 양도가 불가능합니다. (보유: {giver['coin']})"
 
-        if user_data[giver_id]['coin'] < amount:
-            return f"{user_data[giver_id]['name']}님의 소지금이 부족하여 코인 양도가 불가능합니다. (보유: {user_data[giver_id]['coin']})"
-
+        # 코인 차감 및 추가
         cursor.execute("UPDATE auth SET coin = coin - %s WHERE mastodon_id = %s", (amount, giver_id))
-        cursor.execute("UPDATE auth SET coin = coin + %s WHERE mastodon_id = %s", (amount, receiver_id))
+        cursor.execute("UPDATE auth SET coin = coin + %s WHERE mastodon_id = %s", (amount, receiver['mastodon_id']))
 
     conn.commit()
 
-    return f"{user_data[giver_id]['name']}님이 {user_data[receiver_id]['name']}님에게 {amount}코인을 양도하였습니다."
+    return f"{giver['name']}님이 {receiver['name']}님에게 {amount}코인을 양도하였습니다."
 
 def handle_coin_gain(conn, mastodon_id, content):
     """
