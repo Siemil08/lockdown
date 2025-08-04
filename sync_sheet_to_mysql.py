@@ -201,10 +201,19 @@ def sync_auth(conn):
                     gain_path=VALUES(gain_path),
                     auth_time=VALUES(auth_time)
             """, (
-                row.get('id_code'), row.get('name'), row.get('userId'), row.get('job'), safe_float(row.get('height')),
-                safe_int(row.get('power')), safe_int(row.get('obs')), safe_int(row.get('luck')),
-                safe_int(row.get('wilpower')), safe_int(row.get('san')), safe_int(row.get('coin')),
-                row.get('gain_path'), safe_datetime(row.get('auth_time'))
+                    row.get('id_code'),
+                    row.get('Name'),
+                    row.get('userId'),
+                    row.get('직업'),
+                    safe_float(row.get('키')),
+                    safe_int(row.get('힘')),
+                    safe_int(row.get('지능')),
+                    safe_int(row.get('관찰')),
+                    safe_int(row.get('정신력')),
+                    safe_int(row.get('행운')),
+                    safe_int(row.get('소지금')),
+                    row.get('획득 경로'),
+                    safe_datetime(row.get('인증시각'))
             ))
     conn.commit()
     print("✅ 인증(auth) 테이블 초기화 후 동기화 완료")
