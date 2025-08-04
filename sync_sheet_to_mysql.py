@@ -5,24 +5,26 @@ import datetime
 import json
 from google.oauth2.service_account import Credentials
 
+MAIN_SHEET_KEY = '1BiIDoNFD14mVIs2UwRUjsYwcp18DIEluSYGs2foD37s'
+LOG_STHEET_KTY = '1KnCGISum5xWLzmsfewSJyKDPoyC3BCXX9-EVCW4iuE0'
+
+# 데이터베이스 연결
 def get_conn():
     return pymysql.connect(
-        host='34.68.132.37', user='admin', password='ahrvysmswkehdghk', db='bot',
+        host='35.209.172.242', user='admin', password='password1212', db='bot',
         charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor
     )
 
+# 안전한 변환 함수들
 def safe_json(val):
     if val in [None, '', 'None']:
         return None
     try:
-        # 만약 val이 이미 dict 형식이면 json.dumps 해줌
         if isinstance(val, dict):
             return json.dumps(val, ensure_ascii=False)
-        # 아니면 str 타입이라 가정하고 JSON 파싱 시도 후 다시 문자열로 변환
         parsed = json.loads(val)
         return json.dumps(parsed, ensure_ascii=False)
     except Exception:
-        # JSON 파싱 안 되면 그냥 문자열로 저장 (또는 None으로 처리 가능)
         return val
 
 def safe_datetime(val):
@@ -33,13 +35,11 @@ def safe_datetime(val):
         if val in ['', 'None', 'NaT']:
             return None
         try:
-            return pd.to_datetime(val).to_pydatetime()
+            return pd.to_datetime(val)
         except Exception:
             return None
     if isinstance(val, pd.Timestamp):
-        if pd.isna(val):
-            return None
-        return val.to_pydatetime()
+        return None if pd.isna(val) else val.to_pydatetime()
     if isinstance(val, datetime.datetime):
         return val
     return None
@@ -60,6 +60,7 @@ def safe_float(val, default=None):
     except (ValueError, TypeError):
         return default
 
+# 구글 시트 접근
 def get_ws(sheet_key, sheet_name):
     creds = Credentials.from_service_account_file('service_account.json', scopes=[
         'https://spreadsheets.google.com/feeds',
@@ -93,17 +94,14 @@ def ensure_auth_table_exists(cur):
             userId VARCHAR(100),
             job VARCHAR(64),
             height FLOAT,
-            attention INT,
             power INT,
             obs INT,
             luck INT,
             wilpower INT,
-            san int,
+            san INT,
             coin INT,
             gain_path TEXT,
-            auth_time DATETIME,
-            lottery_count INT DEFAULT 0,
-            last_lottery_time date
+            auth_time DATETIME
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
 
@@ -127,7 +125,7 @@ def ensure_favor_table_exists(cur):
             name VARCHAR(64) PRIMARY KEY,
             favor_items TEXT,
             dislike_items TEXT,
-            favor_score json,
+            favor_score JSON,
             favor_status VARCHAR(64),
             complete BOOLEAN
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -141,70 +139,125 @@ def ensure_gacha_table_exists(cur):
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
 
-def ensure_frichcon_table_exists(cur):
+def ensure_josa_table_exists(cur):
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS frichcon (
-            명령어 TEXT NOT NULL,
-            출력 TEXT NOT NULL
+        CREATE TABLE IF NOT EXISTS 조사 (
+            선택경로 TEXT,
+            장소1 TEXT,
+            장소2 TEXT,
+            장소3 TEXT,
+            장소4 TEXT,
+            장소5 TEXT,
+            타겟 TEXT,
+            조건 TEXT,
+            조건2 TEXT,
+            조건3 TEXT,
+            출력지문 TEXT,
+            선택지 TEXT
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """)
+
+def ensure_random_table_exists(cur):
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS random (
+            `답변 리스트` TEXT,
+            `랜덤 키워드` VARCHAR(255)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
 
 # 동기화 함수들
+def sync_josa(conn):
+    df = pd.DataFrame(get_ws('1AKF6DY4JatQCQcbatcjPqEyez-yk17X9SwFgZHrBPao', '조사').get_all_records())
+    df = df.where(pd.notnull(df), None).replace('', None)
+    with conn.cursor() as cur:
+        ensure_josa_table_exists(cur)
+        cur.execute("DELETE FROM 조사")
+        for row in df.to_dict(orient='records'):
+            cur.execute("""
+                INSERT INTO 조사 (선택경로, 장소1, 장소2, 장소3, 장소4, 장소5, 타겟,
+                조건, 조건2, 조건3, 출력지문, 선택지)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                row.get('선택경로'), row.get('장소1'), row.get('장소2'), row.get('장소3'),
+                row.get('장소4'), row.get('장소5'), row.get('타겟'), row.get('조건'),
+                row.get('조건2'), row.get('조건3'), row.get('출력지문'), row.get('선택지')
+            ))
+    conn.commit()
+    print("✅ 조사(josa) 테이블 초기화 후 동기화 완료")
+
 def sync_auth(conn):
-    try:
-        df = pd.DataFrame(get_ws('1AKF6DY4JatQCQcbatcjPqEyez-yk17X9SwFgZHrBPao', '인증').get_all_records())
-        if df.empty:
-            print("❗ 인증 시트에 데이터가 없습니다.")
-            return
-        df = df.where(pd.notnull(df), None)
-        with conn.cursor() as cur:
-            ensure_auth_table_exists(cur)
-            cur.execute("DELETE FROM auth")
-            for _, row in df.iterrows():
-                cur.execute("""
-                    INSERT INTO auth (
-                        id_code, name, userId, job, height,
-                        attention, power, obs, luck, wilpower, san,
-                        coin, gain_path, auth_time, lottery_count,  last_lottery_time
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON DUPLICATE KEY UPDATE
-                        name=VALUES(name),
-                        userId=VALUES(userId),
-                        job=VALUES(job),
-                        height=VALUES(height),
-                        attention=VALUES(attention),
-                        power=VALUES(power),
-                        obs=VALUES(obs),
-                        luck=VALUES(luck),
-                        wilpower=VALUES(wilpower),
-                        san=VALUES(san),
-                        coin=VALUES(coin),
-                        gain_path=VALUES(gain_path),
-                        auth_time=VALUES(auth_time),
-                        lottery_count=VALUES(lottery_count),
-                        last_lottery_time=VALUES(last_lottery_time)
-                """, (
-                    row['id_code'],
-                    row['Name'],
-                    row['userId'],
-                    row['직업'],
-                    safe_float(row['키']),
-                    safe_int(row['주목도']),
-                    safe_int(row['힘']),
-                    safe_int(row['관찰']),
-                    safe_int(row['행운']),
-                    safe_int(row['지력']),
-                    safe_int(row['정신력']),
-                    safe_int(row['소지금'], default=None),
-                    row['획득 경로'] if row['획득 경로'] not in [None, '', 'None'] else None,
-                    safe_datetime(row['인증시각']),
-                    safe_int(row.get('복권 구매 수', 0)),
-                    safe_datetime(row.get('복권 구매일'))
-                ))
-        conn.commit()
-        print("✅ 인증 시트 → 'auth' 테이블 동기화 완료")
-    except Exception as e:
-        print(f"❌ 인증 시트 동기화 중 오류 발생: {e}")
+    df = pd.DataFrame(get_ws('1AKF6DY4JatQCQcbatcjPqEyez-yk17X9SwFgZHrBPao', '인증').get_all_records())
+    if df.empty:
+        print("❗ 인증 시트에 데이터가 없습니다.")
+        return
+    df = df.where(pd.notnull(df), None).replace('', None)
+    with conn.cursor() as cur:
+        ensure_auth_table_exists(cur)
+        cur.execute("DELETE FROM auth")
+        for _, row in df.iterrows():
+            cur.execute("""
+                INSERT INTO auth (
+                    id_code, name, userId, job, height,
+                    power, obs, luck, wilpower, san,
+                    coin, gain_path, auth_time
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    name=VALUES(name),
+                    userId=VALUES(userId),
+                    job=VALUES(job),
+                    height=VALUES(height),
+                    power=VALUES(power),
+                    obs=VALUES(obs),
+                    luck=VALUES(luck),
+                    wilpower=VALUES(wilpower),
+                    san=VALUES(san),
+                    coin=VALUES(coin),
+                    gain_path=VALUES(gain_path),
+                    auth_time=VALUES(auth_time)
+            """, (
+                row.get('id_code'), row.get('name'), row.get('userId'), row.get('job'), safe_float(row.get('height')),
+                safe_int(row.get('power')), safe_int(row.get('obs')), safe_int(row.get('luck')),
+                safe_int(row.get('wilpower')), safe_int(row.get('san')), safe_int(row.get('coin')),
+                row.get('gain_path'), safe_datetime(row.get('auth_time'))
+            ))
+    conn.commit()
+    print("✅ 인증(auth) 테이블 초기화 후 동기화 완료")
+
+def sync_josa(conn):
+    df = pd.DataFrame(get_ws('1AKF6DY4JatQCQcbatcjPqEyez-yk17X9SwFgZHrBPao', '조사').get_all_records())
+    df = df.where(pd.notnull(df), None)
+    df = df.replace('', None)
+    with conn.cursor() as cur:
+        ensure_josa_table_exists(cur)
+        cur.execute("DELETE FROM 조사")
+        for row in df.to_dict(orient='records'):
+            cur.execute("""
+                INSERT INTO 조사 (선택경로, 장소1, 장소2, 장소3, 장소4, 장소5, 타겟,
+                조건, 조건2, 조건3, 출력지문, 선택지)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                row.get('선택경로'), row.get('장소1'), row.get('장소2'), row.get('장소3'), row.get('장소4'),
+                row.get('장소5'), row.get('타겟'), row.get('조건'), row.get('조건2'),
+                row.get('조건3'), row.get('출력지문'), row.get('선택지')
+            ))
+    conn.commit()
+    print("✅ 조사(josa) 테이블 초기화 후 동기화 완료")
+
+def sync_random(conn):
+    df = pd.DataFrame(get_ws('1AKF6DY4JatQCQcbatcjPqEyez-yk17X9SwFgZHrBPao', '랜덤').get_all_records())
+    df = df.where(pd.notnull(df), None).replace('', None)
+    with conn.cursor() as cur:
+        ensure_random_table_exists(cur)
+        cur.execute("DELETE FROM random")
+        for row in df.to_dict(orient='records'):
+            cur.execute("""
+                INSERT INTO random (`랜덤 키워드`, `답변 리스트`)
+                VALUES (%s, %s)
+            """, (
+                row.get('랜덤 키워드'), row.get('답변 리스트')
+            ))
+    conn.commit()
+    print("✅ 랜덤 시트 → 'random' 테이블 동기화 완료")
 
 def sync_settlement(conn):
     try:
@@ -284,34 +337,18 @@ def sync_gacha(conn):
     except Exception as e:
         print(f"❌ 가챠 시트 동기화 중 오류 발생: {e}")
 
-def sync_frichcon(conn):
-    try:
-        df = pd.DataFrame(get_ws('1AKF6DY4JatQCQcbatcjPqEyez-yk17X9SwFgZHrBPao', '수염').get_all_records())
-        if df.empty:
-            print("❗ '수염' 시트에 데이터가 없습니다.")
-            return
-        df = df.replace('', None)
-        with conn.cursor() as cur:
-            ensure_frichcon_table_exists(cur)
-            cur.execute("DELETE FROM frichcon")
-            for row in df.to_dict(orient='records'):
-                cur.execute(
-                    "INSERT INTO frichcon (명령어, 출력) VALUES (%s, %s)",
-                    (row.get('명령어'), row.get('출력'))
-                )
-        conn.commit()
-        print("✅ '수염' 시트 → 'frichcon' 테이블 동기화 완료")
-    except Exception as e:
-        print(f"❌ '수염' 시트 동기화 중 오류 발생: {e}")
-
 def run():
     conn = get_conn()
     try:
+        with conn.cursor() as cur:
+            ensure_total_log_table_exists(cur)
+            ensure_random_table_exists(cur)
         sync_auth(conn)
         sync_settlement(conn)
         sync_favor(conn)
         sync_gacha(conn)
-        sync_frichcon(conn)
+        sync_josa(conn)
+        sync_random(conn)
         print("\u2705 Google Sheets → MySQL 동기화 완료")
     finally:
         conn.close()
