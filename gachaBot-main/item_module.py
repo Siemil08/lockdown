@@ -179,11 +179,11 @@ def handle_item_sell(conn, mastodon_id, content):
     if not auth_row:
         return f"{mastodon_id}님은 인증된 사용자가 아닙니다."
 
-    id_code = auth_row["id_code"]
+    mastodon_id = auth_row["mastodon_id"]
     username = auth_row.get("name", id_code)
 
     # settlements 정보 조회 (id_code 기준)
-    cursor.execute("SELECT * FROM settlements WHERE id_code = %s", (id_code,))
+    cursor.execute("SELECT * FROM settlements WHERE mastodon_id = %s", (mastodon_id,))
     settlement_row = cursor.fetchone()
     if not settlement_row:
         return f"{username}님은 등록된 사용자가 아닙니다."
@@ -229,12 +229,12 @@ def handle_item_sell(conn, mastodon_id, content):
 
     # DB 업데이트
     cursor.execute(
-        "UPDATE settlements SET inventory = %s, sell_pending = %s WHERE id_code = %s",
-        (updated_inventory_str, str(leftover_item_name), id_code)
+        "UPDATE settlements SET inventory = %s, sell_pending = %s WHERE mastodon_id = %s",
+        (updated_inventory_str, str(leftover_item_name), mastodon_id)
     )
     cursor.execute(
-        "UPDATE auth SET coin = %s WHERE id_code = %s",
-        (new_coin, id_code)
+        "UPDATE auth SET coin = %s WHERE mastodon_id = %s",
+        (new_coin, mastodon_id)
     )
     conn.commit()
 
