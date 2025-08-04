@@ -22,7 +22,7 @@ def load_coin(conn, username):
 
 
 # 정산하면 툿수 계산해서 코인도 주는 코드
-def handle_balance(conn, mastodon, mastodon_id):
+def handle_balance(conn, mastodon, acct):
     """
     마스토돈 아이디 기준 정산 처리
     - mastodon_id로 mastodon API에서 상태 수 조회
@@ -31,23 +31,23 @@ def handle_balance(conn, mastodon, mastodon_id):
     - 인증 테이블 coin 업데이트 (mastodon_id 기준)
     - 이름 기준 메시지 반환
     """
-    accounts = mastodon.account_search(mastodon_id, limit=1)
+    accounts = mastodon.account_search(acct, limit=1)
     if not accounts:
-        return f"마스토돈 계정을 찾을 수 없습니다: {mastodon_id}"
+        return f"마스토돈 계정을 찾을 수 없습니다: {acct}"
     user_info = accounts[0]
     current_tuts = safe_int(user_info.get('statuses_count', 0))
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     with conn.cursor() as cursor:
         # auth 테이블에서 mastodon_id로 이름 조회
-        cursor.execute("SELECT name FROM auth WHERE mastodon_id = %s", (mastodon_id,))
+        cursor.execute("SELECT name FROM auth WHERE mastodon_id = %s", (acct,))
         auth_row = cursor.fetchone()
         if not auth_row:
             return f"{mastodon_id}님은 인증된 사용자가 아닙니다."
         username = auth_row['name']
 
         # settlements 테이블에서 mastodon_id로 정산 정보 조회
-        cursor.execute("SELECT * FROM settlements WHERE mastodon_id = %s", (mastodon_id,))
+        cursor.execute("SELECT * FROM settlements WHERE mastodon_id = %s", (acct,))
         row = cursor.fetchone()
 
         if row:
@@ -77,12 +77,12 @@ def handle_balance(conn, mastodon, mastodon_id):
             """, (mastodon_id, current_tuts, current_tuts, leftover_tuts, new_total_coin, now))
 
         # 인증 테이블 coin 업데이트 (mastodon_id 기준)
-        cursor.execute("SELECT coin FROM auth WHERE mastodon_id = %s", (mastodon_id,))
+        cursor.execute("SELECT coin FROM auth WHERE mastodon_id = %s", (acct,))
         auth_coin_row = cursor.fetchone()
         if auth_coin_row:
             current_coin = safe_int(auth_coin_row['coin'])
             updated_coin = current_coin + reward_coin
-            cursor.execute("UPDATE auth SET coin = %s WHERE mastodon_id = %s", (updated_coin, mastodon_id))
+            cursor.execute("UPDATE auth SET coin = %s WHERE mastodon_id = %s", (updated_coin, acct))
         else:
             return f"{username}님은 인증된 사용자가 아닙니다."
 
@@ -149,7 +149,7 @@ def handle_coin_gain(conn, mastodon_id, content):
     amount = int(match.group(1))
 
     with conn.cursor() as cursor:
-        cursor.execute("SELECT name, coin FROM auth WHERE mastodon_id = %s", (mastodon_id,))
+        cursor.execute("SELECT name, coin FROM auth WHERE mastodon_id = %s", (acct,))
         row = cursor.fetchone()
         if not row:
             return f"인증된 사용자가 아닙니다."
@@ -159,7 +159,7 @@ def handle_coin_gain(conn, mastodon_id, content):
         new_coin = current_coin + amount
 
         # 코인 업데이트
-        cursor.execute("UPDATE auth SET coin = %s WHERE mastodon_id = %s", (new_coin, mastodon_id))
+        cursor.execute("UPDATE auth SET coin = %s WHERE mastodon_id = %s", (new_coin, acct))
 
         # 로그 기록
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
