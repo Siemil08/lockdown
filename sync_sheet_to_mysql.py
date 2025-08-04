@@ -247,7 +247,7 @@ def sync_random(conn):
 
 def sync_settlement(conn):
     try:
-        df = pd.DataFrame(get_ws('1AKF6DY4JatQCQcbatcjPqEyez-yk17X9SwFgZHrBPao', '정산').get_all_records())
+        df = pd.DataFrame(get_ws(MAIN_SHEET_KEY, '정산').get_all_records())
         if df.empty:
             print("❗ 정산 시트에 데이터가 없습니다.")
             return
@@ -305,7 +305,7 @@ def sync_favor(conn):
 
 def sync_gacha(conn):
     try:
-        df = pd.DataFrame(get_ws('1AKF6DY4JatQCQcbatcjPqEyez-yk17X9SwFgZHrBPao', '가챠').get_all_records())
+        df = pd.DataFrame(get_ws(MAIN_SHEET_KEY, '가챠').get_all_records())
         if df.empty:
             print("❗ 가챠 시트에 데이터가 없습니다.")
             return
