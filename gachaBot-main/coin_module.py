@@ -43,7 +43,7 @@ def handle_balance(conn, mastodon, acct):
         cursor.execute("SELECT name FROM auth WHERE mastodon_id = %s", (acct,))
         auth_row = cursor.fetchone()
         if not auth_row:
-            return f"{mastodon_id}님은 인증된 사용자가 아닙니다."
+            return f"{username}님은 인증된 사용자가 아닙니다."
         username = auth_row['name']
 
         # settlements 테이블에서 mastodon_id로 정산 정보 조회
