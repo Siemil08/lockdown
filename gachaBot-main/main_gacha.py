@@ -40,7 +40,7 @@ class GachaBotListener(StreamListener):
 
             # 명령어별 분기 처리
             if '[정산]' in content:
-                reply = load_coin(conn, username)
+                reply = handle_balance(conn, mastodon, username)
             elif '[뽑기]' in content or '[가챠]' in content:
                 reply = handle_gacha(conn, username, content)
             elif '[소지품]' in content or '[인벤토리]' in content or '[소지 아이템]' in content:
