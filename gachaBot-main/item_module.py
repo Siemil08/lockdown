@@ -180,7 +180,7 @@ def handle_item_sell(conn, mastodon_id, content):
         return f"{mastodon_id}님은 인증된 사용자가 아닙니다."
 
     mastodon_id = auth_row["mastodon_id"]
-    username = auth_row.get("name", id_code)
+    username = auth_row.get("name", mastodon_id)
 
     # settlements 정보 조회 (id_code 기준)
     cursor.execute("SELECT * FROM settlements WHERE mastodon_id = %s", (mastodon_id,))
