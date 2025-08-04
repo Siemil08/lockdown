@@ -255,6 +255,7 @@ def handle_item_sell(conn, mastodon_id, content):
 def handle_gift(conn, mastodon_id, content):
     cursor = conn.cursor(pymysql.cursors.DictCursor)
 
+    # 입력 형식 검사
     match = re.search(r'\[(.+?)\]\s*(을|를)\s*\[(.+?)\]\s*에게\s*\[양도\]', content)
     if not match:
         return "입력 형식이 올바르지 않습니다. 예: [아이템]을 [받는사람]에게 [양도]"
@@ -263,31 +264,31 @@ def handle_gift(conn, mastodon_id, content):
     receiver_name = match.group(3)
     item_name_to_give = parse_item_name(item_str)
 
-    # giver(auth) 조회
+    # giver(auth) 조회 (mastodon_id 기준)
     cursor.execute("SELECT * FROM auth WHERE mastodon_id = %s", (mastodon_id,))
     giver_auth_row = cursor.fetchone()
     if not giver_auth_row:
         return f"{mastodon_id}님은 인증된 사용자가 아닙니다."
 
-    giver_id_code = giver_auth_row["id_code"]
-    giver_name = giver_auth_row["name"]
+    giver_name = giver_auth_row.get("name", mastodon_id)
 
-    # giver(settlements) 조회
-    cursor.execute("SELECT * FROM settlements WHERE id_code = %s", (giver_id_code,))
+    # giver(settlements) 조회 (mastodon_id 기준)
+    cursor.execute("SELECT * FROM settlements WHERE mastodon_id = %s", (mastodon_id,))
     giver_settle_row = cursor.fetchone()
     if not giver_settle_row:
         return f"{giver_name}님은 등록된 사용자가 아닙니다."
 
-    # receiver(auth) 조회
+    # receiver(auth) 조회 (name 기준)
     cursor.execute("SELECT * FROM auth WHERE name = %s", (receiver_name,))
     receiver_auth_row = cursor.fetchone()
     if not receiver_auth_row:
         return f"{receiver_name}님은 인증된 사용자가 아닙니다."
 
-    receiver_id_code = receiver_auth_row["id_code"]
+    receiver_mastodon_id = receiver_auth_row.get("mastodon_id")
+    receiver_name = receiver_auth_row.get("name", receiver_name)
 
-    # receiver(settlements) 조회
-    cursor.execute("SELECT * FROM settlements WHERE id_code = %s", (receiver_id_code,))
+    # receiver(settlements) 조회 (mastodon_id 기준)
+    cursor.execute("SELECT * FROM settlements WHERE mastodon_id = %s", (receiver_mastodon_id,))
     receiver_settle_row = cursor.fetchone()
     if not receiver_settle_row:
         return f"{receiver_name}님은 등록된 사용자가 아닙니다."
@@ -313,12 +314,12 @@ def handle_gift(conn, mastodon_id, content):
     receiver_inventory_str = ','.join(receiver_item_name)
 
     cursor.execute(
-        "UPDATE settlements SET inventory = %s WHERE id_code = %s",
-        (giver_inventory_str, giver_id_code)
+        "UPDATE settlements SET inventory = %s WHERE mastodon_id = %s",
+        (giver_inventory_str, mastodon_id)
     )
     cursor.execute(
-        "UPDATE settlements SET inventory = %s WHERE id_code = %s",
-        (receiver_inventory_str, receiver_id_code)
+        "UPDATE settlements SET inventory = %s WHERE mastodon_id = %s",
+        (receiver_inventory_str, receiver_mastodon_id)
     )
     conn.commit()
 
