@@ -66,43 +66,43 @@ def get_object_particle(word):
     return '을' if jongseong != 0 else '를'
         
 # 가챠
-def handle_gacha(conn, username, content):
+def handle_gacha(conn, mastodon_id, content):
     with conn.cursor(pymysql.cursors.DictCursor) as cursor:
         # 1) 인증 사용자 정보 조회 (소지금)
-        cursor.execute("SELECT name, coin FROM auth WHERE name=%s", (username,))
+        cursor.execute("SELECT name, coin FROM auth WHERE mastodon_id=%s", (mastodon_id,))
         auth_row = cursor.fetchone()
         if not auth_row:
-            print(f"DEBUG: username = '{username}'")
-            return f"{username}님은 인증된 사용자가 아닙니다."
+            print(f"DEBUG: mastodon_id = '{mastodon_id}'")
+            return split_message(f"인증된 사용자가 아닙니다. (mastodon_id: {mastodon_id})")
+        username = auth_row['name']
         coin = int(auth_row.get('coin', 0))
 
         # 2) 정산 사용자 정보 조회 (소지품)
-        cursor.execute("SELECT name, inventory FROM settlements WHERE name=%s", (username,))
+        cursor.execute("SELECT inventory FROM settlements WHERE mastodon_id=%s", (mastodon_id,))
         settle_row = cursor.fetchone()
         if not settle_row:
-            print(f"DEBUG: username = '{username}'")
-            return f"{username}님은 인증된 사용자가 아닙니다."
-        item_name = (settle_row.get('inventory') or '').strip() if settle_row else ''
+            print(f"DEBUG: mastodon_id = '{mastodon_id}'")
+            return split_message(f"인증된 사용자가 아닙니다. (mastodon_id: {mastodon_id})")
+        item_name = (settle_row.get('inventory') or '').strip()
 
         # 3) 뽑기 횟수 파싱
         match = re.search(r'(?:\[(?:뽑기|가챠)\]\s*(\d+)?\s*(회|번|연)?|(\d+)\s*(회|번|연)\s*연속?\s*\[(?:뽑기|가챠)\])', content)
         count = int(match.group(1) or match.group(3) or 1)
 
         if coin < count:
-            return f"{username}님, 소지금이 부족합니다. (보유 코인: {coin}, 필요 코인: {count})"
+            return split_message(f"{username}님, 소지금이 부족합니다. (보유 코인: {coin}, 필요 코인: {count})")
 
         # 4) 랜덤 아이템 목록 조회
         cursor.execute("SELECT item_name, answer_list FROM gacha WHERE item_name IS NOT NULL AND item_name != ''")
         gacha_rows = cursor.fetchall()
 
-        # 아이템 이름 → 설명 매핑
         gacha_map = {row['item_name']: row.get('answer_list', '') for row in gacha_rows}
         item_pool = list(gacha_map.keys())
 
         # 랜덤 뽑기
         acquired = random.choices(item_pool, k=count)
 
-        # 결과 메시지 구성 (한 줄: 아이템명 - answer_list)
+        # 결과 메시지 구성
         result_lines = acquired
         acquired_str = ', '.join(result_lines)
         particle = get_object_particle(result_lines[-1])
@@ -110,27 +110,26 @@ def handle_gacha(conn, username, content):
         # 기존 소지품에 추가
         new_item_name = item_name + (', ' if item_name else '') + ', '.join(acquired)
 
-        # 5) DB 업데이트: 소지금 차감, 소지품 추가
-        cursor.execute("UPDATE auth SET coin = coin - %s WHERE name=%s", (count, username))
-        cursor.execute("UPDATE settlements SET inventory = %s WHERE name=%s", (new_item_name, username))
+        # 5) DB 업데이트
+        cursor.execute("UPDATE auth SET coin = coin - %s WHERE mastodon_id=%s", (count, mastodon_id))
+        cursor.execute("UPDATE settlements SET inventory = %s WHERE mastodon_id=%s", (new_item_name, mastodon_id))
 
         conn.commit()
 
     # 최종 출력 메시지
     full_message = f"{username}님, {count}회 가챠를 진행합니다...\n{acquired_str}{particle} 획득하였습니다."
-    messages = split_message(full_message)
-
-    return messages
+    return split_message(full_message)
 
 
 # 아이템 확인
-def handle_inventory(conn, username):
+def handle_inventory(conn, mastodon_id):
     with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-        cursor.execute("SELECT inventory FROM settlements WHERE name = %s", (username,))
+        cursor.execute("SELECT name, inventory FROM settlements WHERE mastodon_id = %s", (mastodon_id,))
         row = cursor.fetchone()
         if not row:
-            return split_message(f"{username}님은 인증된 사용자가 아닙니다.")
+            return split_message(f"인증된 사용자가 아닙니다. (mastodon_id: {mastodon_id})")
         
+        username = row['name']
         item_name = parse_item_name(row.get('inventory', ''))
         if not item_name:
             return split_message(f"{username}님이 획득한 호감도 아이템은 없습니다.")
@@ -140,7 +139,6 @@ def handle_inventory(conn, username):
         result_text = f"{username}님이 소지한 아이템 목록은 다음과 같습니다:\n" + '\n'.join(result_lines)
         
         return split_message(result_text)
-
 
 # 아이템 수량 검색
 def handle_item_search(conn, username, content):
@@ -163,7 +161,7 @@ def handle_item_search(conn, username, content):
             return f"{username}님은 {search_item}을(를) {count}개 가지고 있습니다."
 
 # 아이템 매각
-def handle_item_sell(conn, username, content):
+def handle_item_sell(conn, mastodon_id, content):
     cursor = conn.cursor(pymysql.cursors.DictCursor)
 
     # 입력 검증
@@ -171,33 +169,34 @@ def handle_item_sell(conn, username, content):
     if len(matches) < 2:
         return "[아이템 매각] [아이템명] 형식으로 입력해주세요. 예: [아이템 매각] [연필, 지우개]"
 
-    # 아이템명 리스트 추출
     item_name_to_sell = [item.strip() for item in matches[1].split(',') if item.strip()]
     if not item_name_to_sell:
         return "매각할 아이템이 없습니다."
 
-    # settlement 정보 조회
-    cursor.execute("SELECT * FROM settlements WHERE name = %s", (username,))
+    # auth 정보 조회 (mastodon_id 기준)
+    cursor.execute("SELECT * FROM auth WHERE mastodon_id = %s", (mastodon_id,))
+    auth_row = cursor.fetchone()
+    if not auth_row:
+        return f"{mastodon_id}님은 인증된 사용자가 아닙니다."
+
+    id_code = auth_row["id_code"]
+    username = auth_row.get("name", id_code)
+
+    # settlements 정보 조회 (id_code 기준)
+    cursor.execute("SELECT * FROM settlements WHERE id_code = %s", (id_code,))
     settlement_row = cursor.fetchone()
     if not settlement_row:
         return f"{username}님은 등록된 사용자가 아닙니다."
 
-    # auth 정보 조회
-    cursor.execute("SELECT * FROM auth WHERE name = %s", (username,))
-    auth_row = cursor.fetchone()
-    if not auth_row:
-        return f"{username}님은 인증된 사용자가 아닙니다."
-
-    # 현재 보유 아이템 파싱
+    # 보유 아이템 파싱
     inventory_str = settlement_row.get('inventory') or ''
     owned_item_name = [item.strip() for item in inventory_str.split(',') if item.strip()]
     owned_counter = Counter(owned_item_name)
 
-    # 기존 매각 대기 아이템 수
+    # 기존 매각 대기 수량
     pending_item_name_str = settlement_row.get('sell_pending') or '0'
     pending_item_name = safe_int(pending_item_name_str)
 
-    # 보유 코인
     current_coin = safe_int(auth_row.get('coin', 0))
 
     # 매각 처리
@@ -214,7 +213,7 @@ def handle_item_sell(conn, username, content):
     if not sold_item_name:
         return f"{username}님은 해당 아이템을 소지하고 있지 않습니다."
 
-    # 남은 아이템 문자열 재구성
+    # 남은 아이템 문자열 구성
     updated_item_name = []
     for item, count in owned_counter.items():
         updated_item_name.extend([item] * count)
@@ -230,16 +229,15 @@ def handle_item_sell(conn, username, content):
 
     # DB 업데이트
     cursor.execute(
-        "UPDATE settlements SET inventory = %s, sell_pending = %s WHERE name = %s",
-        (updated_inventory_str, str(leftover_item_name), username)
+        "UPDATE settlements SET inventory = %s, sell_pending = %s WHERE id_code = %s",
+        (updated_inventory_str, str(leftover_item_name), id_code)
     )
     cursor.execute(
-        "UPDATE auth SET coin = %s WHERE name = %s",
-        (new_coin, username)
+        "UPDATE auth SET coin = %s WHERE id_code = %s",
+        (new_coin, id_code)
     )
     conn.commit()
 
-    # 결과 메시지
     response = (
         f"{username}님이 다음 아이템을 매각하였습니다:\n"
         f"{', '.join(sold_item_name)}\n"
@@ -254,34 +252,51 @@ def handle_item_sell(conn, username, content):
 
 
 # 아이템 양도
-def handle_gift(conn, giver, content):
+def handle_gift(conn, mastodon_id, content):
     cursor = conn.cursor(pymysql.cursors.DictCursor)
-    
+
     match = re.search(r'\[(.+?)\]\s*(을|를)\s*\[(.+?)\]\s*에게\s*\[양도\]', content)
     if not match:
         return "입력 형식이 올바르지 않습니다. 예: [아이템]을 [받는사람]에게 [양도]"
 
     item_str = match.group(1)
-    receiver = match.group(3)
+    receiver_name = match.group(3)
     item_name_to_give = parse_item_name(item_str)
 
-    # giver 정보 조회
-    cursor.execute("SELECT * FROM settlements WHERE name = %s", (giver,))
-    giver_row = cursor.fetchone()
-    if not giver_row:
-        return f"{giver}님은 인증되지 않았습니다."
+    # giver(auth) 조회
+    cursor.execute("SELECT * FROM auth WHERE mastodon_id = %s", (mastodon_id,))
+    giver_auth_row = cursor.fetchone()
+    if not giver_auth_row:
+        return f"{mastodon_id}님은 인증된 사용자가 아닙니다."
 
-    # receiver 정보 조회
-    cursor.execute("SELECT * FROM settlements WHERE name = %s", (receiver,))
-    receiver_row = cursor.fetchone()
-    if not receiver_row:
-        return f"{receiver}님은 인증되지 않았습니다."
+    giver_id_code = giver_auth_row["id_code"]
+    giver_name = giver_auth_row["name"]
 
-    # 소지품 리스트 파싱
-    giver_item_name = parse_item_name(giver_row.get("inventory", ""))
-    receiver_item_name = parse_item_name(receiver_row.get("inventory", ""))
+    # giver(settlements) 조회
+    cursor.execute("SELECT * FROM settlements WHERE id_code = %s", (giver_id_code,))
+    giver_settle_row = cursor.fetchone()
+    if not giver_settle_row:
+        return f"{giver_name}님은 등록된 사용자가 아닙니다."
 
-    # 아이템 양도 처리
+    # receiver(auth) 조회
+    cursor.execute("SELECT * FROM auth WHERE name = %s", (receiver_name,))
+    receiver_auth_row = cursor.fetchone()
+    if not receiver_auth_row:
+        return f"{receiver_name}님은 인증된 사용자가 아닙니다."
+
+    receiver_id_code = receiver_auth_row["id_code"]
+
+    # receiver(settlements) 조회
+    cursor.execute("SELECT * FROM settlements WHERE id_code = %s", (receiver_id_code,))
+    receiver_settle_row = cursor.fetchone()
+    if not receiver_settle_row:
+        return f"{receiver_name}님은 등록된 사용자가 아닙니다."
+
+    # 인벤토리 파싱
+    giver_item_name = parse_item_name(giver_settle_row.get("inventory", ""))
+    receiver_item_name = parse_item_name(receiver_settle_row.get("inventory", ""))
+
+    # 양도 처리
     transferred = []
     not_found = []
 
@@ -298,54 +313,59 @@ def handle_gift(conn, giver, content):
     receiver_inventory_str = ','.join(receiver_item_name)
 
     cursor.execute(
-        "UPDATE settlements SET inventory = %s WHERE name = %s",
-        (giver_inventory_str, giver)
+        "UPDATE settlements SET inventory = %s WHERE id_code = %s",
+        (giver_inventory_str, giver_id_code)
     )
     cursor.execute(
-        "UPDATE settlements SET inventory = %s WHERE name = %s",
-        (receiver_inventory_str, receiver)
+        "UPDATE settlements SET inventory = %s WHERE id_code = %s",
+        (receiver_inventory_str, receiver_id_code)
     )
     conn.commit()
 
-    # 결과 메시지 구성
+    # 결과 메시지
     result = ""
     if transferred:
-        result += f"{giver}님이 {receiver}님에게 {', '.join(transferred)}을(를) 양도하였습니다."
+        result += f"{giver_name}님이 {receiver_name}님에게 {', '.join(transferred)}을(를) 양도하였습니다."
     if not_found:
-        result += f" {giver}님의 소지품에 없는 아이템입니다: {', '.join(not_found)}"
+        result += f" {giver_name}님의 소지품에 없는 아이템입니다: {', '.join(not_found)}"
 
     return result.strip()
 
 
-def handle_present(conn, giver, content):
+def handle_present(conn, giver_mastodon_id, content):
     cursor = conn.cursor(pymysql.cursors.DictCursor)
+
     # [아이템]을 [받는사람]에게 [선물] 형태 매칭
     match = re.search(r'\[(.+?)\]\s*(을|를|은|는)\s*\[(.+?)\]\s*에게\s*\[(선물)\]', content)
     if not match:
         return "입력 형식이 올바르지 않습니다. 예: [아이템]을 [받는사람]에게 [선물]합니다."
 
     item_str = match.group(1)
-    receiver = match.group(3)
+    receiver_name = match.group(3)
     item_name_to_present = parse_item_name(item_str)
 
-    # giver 정보 조회
-    cursor.execute("SELECT * FROM settlements WHERE name = %s", (giver,))
+    # giver 정보 조회 (mastodon_id 기준)
+    cursor.execute("SELECT * FROM settlements WHERE mastodon_id = %s", (giver_mastodon_id,))
     giver_row = cursor.fetchone()
     if not giver_row:
-        return f"{giver}님은 인증되지 않았습니다."
+        return f"선물자 인증에 실패했습니다. ({giver_mastodon_id})"
+
+    giver_name = giver_row["name"]
     giver_item_name = parse_item_name(giver_row.get('inventory', ''))
 
-    # receiver 정산 정보 확인
-    cursor.execute("SELECT * FROM settlements WHERE name = %s", (receiver,))
+    # receiver 정보 조회 (name 기준 입력 → mastodon_id 얻기)
+    cursor.execute("SELECT * FROM settlements WHERE name = %s", (receiver_name,))
     receiver_row = cursor.fetchone()
     if not receiver_row:
-        return f"{receiver}님은 인증되지 않았습니다."
+        return f"{receiver_name}님은 인증되지 않았습니다."
+
+    receiver_mastodon_id = receiver_row["mastodon_id"]
 
     # favor 정보 조회
-    cursor.execute("SELECT * FROM favor WHERE name = %s", (receiver,))
+    cursor.execute("SELECT * FROM favor WHERE mastodon_id = %s", (receiver_mastodon_id,))
     favor_row = cursor.fetchone()
     if not favor_row:
-        return f"{receiver}님의 호감도 정보가 없습니다."
+        return f"{receiver_name}님의 호감도 정보가 없습니다."
 
     # 호감/불호 아이템 파싱
     favor_item_list = parse_item_name(favor_row.get("favor_items", ""))
@@ -368,40 +388,38 @@ def handle_present(conn, giver, content):
             continue
         giver_item_name.remove(item)
 
-        key = f"{giver}_{item}"
+        key = f"{giver_name}_{item}"
         if item in favor_item_list:
-            favor_score_dict[giver] = favor_score_dict.get(giver, 0) + 1
+            favor_score_dict[giver_name] = favor_score_dict.get(giver_name, 0) + 1
             if key not in favor_status_str.split(','):
                 if favor_status_str:
                     favor_status_str += ','
                 favor_status_str += key
             transferred.append(item)
         elif item in disfavor_item_list:
-            favor_score_dict[giver] = favor_score_dict.get(giver, 0) - 1
+            favor_score_dict[giver_name] = favor_score_dict.get(giver_name, 0) - 1
             transferred.append(item)
         else:
-            # 호감도/비호감도 아이템이 아님
             transferred.append(item)
             invalid_items.append(item)
 
     # giver 소지품 업데이트
     giver_inventory_str = ', '.join(giver_item_name)
     cursor.execute(
-        "UPDATE settlements SET inventory = %s WHERE name = %s",
-        (giver_inventory_str, giver)
+        "UPDATE settlements SET inventory = %s WHERE mastodon_id = %s",
+        (giver_inventory_str, giver_mastodon_id)
     )
 
     # favor 점수 및 현황 업데이트
     cursor.execute(
-        "UPDATE favor SET favor_score = %s, favor_status = %s WHERE name = %s",
-        (json.dumps(favor_score_dict, ensure_ascii=False), favor_status_str, receiver)
+        "UPDATE favor SET favor_score = %s, favor_status = %s WHERE mastodon_id = %s",
+        (json.dumps(favor_score_dict, ensure_ascii=False), favor_status_str, receiver_mastodon_id)
     )
 
-    # === complete 열 자동 업데이트 ===
+    # complete 필드 업데이트
     favor_item_name = [i.strip() for i in favor_row.get('favor_items', '').split(',') if i.strip()]
     favor_status_list = [s.strip() for s in favor_status_str.split(',') if s.strip()]
 
-    # 누가 뭘 줬는지
     name_item_map = {}
     for entry in favor_status_list:
         match = re.match(r'^(.+?)_(.+)$', entry)
@@ -410,16 +428,15 @@ def handle_present(conn, giver, content):
         name_, item_ = match.groups()
         name_item_map.setdefault(name_, set()).add(item_)
 
-    # 모든 favor 아이템을 선물한 사람들 추출
     complete_names = [name_ for name_, item_set in name_item_map.items()
                       if set(favor_item_name).issubset(item_set)]
 
     complete_str = ', '.join(complete_names)
 
     cursor.execute(
-        "UPDATE favor SET complete = %s WHERE name = %s",
-        (complete_str, receiver)
-)
+        "UPDATE favor SET complete = %s WHERE mastodon_id = %s",
+        (complete_str, receiver_mastodon_id)
+    )
 
     conn.commit()
 
@@ -429,29 +446,28 @@ def handle_present(conn, giver, content):
         match = re.match(r'^(.+?)_(.+)$', entry)
         if match:
             name_, item_ = match.groups()
-            if name_ == receiver:
+            if name_ == giver_name:
                 completed_items.add(item_)
 
     favor_items_set = set(favor_item_name)
     remaining_items_count = len(favor_items_set - completed_items)
 
-    # 결과 메시지 생성
     result = ""
     if transferred:
-        result += f"아이템 선물 성공! {giver}님이 {receiver}님에게 {', '.join(transferred)}을(를) 선물하였습니다."
+        result += f"아이템 선물 성공! {giver_name}님이 {receiver_name}님에게 {', '.join(transferred)}을(를) 선물하였습니다."
 
     if invalid_items:
         result = ""
-        result += f"아이템 선물. {giver}님이 {receiver}님에게 {', '.join(transferred)}을(를) 선물하였습니다."
+        result += f"아이템 선물. {giver_name}님이 {receiver_name}님에게 {', '.join(transferred)}을(를) 선물하였습니다."
         result += '\n' + ' '.join(
-            [f"{item}은(는) {receiver}님이 좋아하는 아이템이 아닙니다." for item in invalid_items]
+            [f"{item}은(는) {receiver_name}님이 좋아하는 아이템이 아닙니다." for item in invalid_items]
         )
 
     if no_item_name:
-        result += f"\n선물 실패! {giver}님이 소지하지 않은 호감도 아이템이 있습니다: {', '.join(no_item_name)}"
+        result += f"\n선물 실패! {giver_name}님이 소지하지 않은 호감도 아이템이 있습니다: {', '.join(no_item_name)}"
 
-    # 현재 호감 점수 추가
-    current_favor_score = favor_score_dict.get(giver, 0)
-    result += f"\n현재 {receiver}님이 {giver}님에게 느끼는 호감도는 {current_favor_score}점입니다."
+    current_favor_score = favor_score_dict.get(giver_name, 0)
+    result += f"\n현재 {receiver_name}님이 {giver_name}님에게 느끼는 호감도는 {current_favor_score}점입니다."
 
     return result.strip()
+
