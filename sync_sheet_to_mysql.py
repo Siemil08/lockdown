@@ -230,7 +230,7 @@ def sync_josa(conn):
     print("✅ 조사(josa) 테이블 초기화 후 동기화 완료")
 
 def sync_random(conn):
-    df = pd.DataFrame(get_ws('1AKF6DY4JatQCQcbatcjPqEyez-yk17X9SwFgZHrBPao', '랜덤').get_all_records())
+    df = pd.DataFrame(get_ws(MAIN_SHEET_KEY, '랜덤').get_all_records())
     df = df.where(pd.notnull(df), None).replace('', None)
     with conn.cursor() as cur:
         ensure_random_table_exists(cur)
@@ -277,7 +277,7 @@ def sync_settlement(conn):
 
 def sync_favor(conn):
     try:
-        df = pd.DataFrame(get_ws('1AKF6DY4JatQCQcbatcjPqEyez-yk17X9SwFgZHrBPao', '호감도').get_all_records())
+        df = pd.DataFrame(get_ws(MAIN_SHEET_KEY, '호감도').get_all_records())
         if df.empty:
             print("❗ 호감도 시트에 데이터가 없습니다.")
             return
