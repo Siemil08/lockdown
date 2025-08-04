@@ -182,41 +182,27 @@ def sync_auth(conn):
         cur.execute("DELETE FROM auth")
         for _, row in df.iterrows():
             cur.execute("""
-                INSERT INTO auth (
-                    id_code, name, userId, job, height,
-                    power, obs, luck, wilpower, san,
-                    coin, gain_path, auth_time, mastodon_id
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE
-                    name=VALUES(name),
-                    userId=VALUES(userId),
-                    job=VALUES(job),
-                    height=VALUES(height),
-                    power=VALUES(power),
-                    obs=VALUES(obs),
-                    luck=VALUES(luck),
-                    wilpower=VALUES(wilpower),
-                    san=VALUES(san),
-                    coin=VALUES(coin),
-                    gain_path=VALUES(gain_path),
-                    auth_time=VALUES(auth_time),
-                    mastodon_id
-            """, (
-                    row.get('id_code'),
-                    row.get('Name'),
-                    row.get('userId'),
-                    row.get('직업'),
-                    safe_float(row.get('키')),
-                    safe_int(row.get('힘')),
-                    safe_int(row.get('지능')),
-                    safe_int(row.get('관찰')),
-                    safe_int(row.get('정신력')),
-                    safe_int(row.get('행운')),
-                    safe_int(row.get('소지금')),
-                    row.get('획득 경로'),
-                    safe_datetime(row.get('인증시각')),
-                    mastodon_id
-            ))
+            INSERT INTO auth (
+                id_code, name, userId, job, height,
+                power, obs, luck, wilpower, san,
+                coin, gain_path, auth_time, mastodon_id
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            row.get('id_code'),
+            row.get('Name'),
+            row.get('userId'),
+            row.get('직업'),
+            safe_float(row.get('키')),
+            safe_int(row.get('힘')),
+            safe_int(row.get('지능')),
+            safe_int(row.get('관찰')),
+            safe_int(row.get('정신력')),
+            safe_int(row.get('행운')),
+            safe_int(row.get('소지금')),
+            row.get('획득 경로'),
+            safe_datetime(row.get('인증시각')),
+            row.get('mastodon_id')
+        ))
     conn.commit()
     print("✅ 인증(auth) 테이블 초기화 후 동기화 완료")
 
@@ -280,7 +266,7 @@ def sync_settlement(conn):
                     safe_int(row['정산 툿수']),
                     safe_int(row['지불 코인']),
                     safe_datetime(row['마지막 정산']),
-                    mastodon_id
+                    row.get('mastodon_id')
                 ))
         conn.commit()
         print("✅ 정산 시트 → 'settlements' 테이블 동기화 완료")
@@ -309,7 +295,7 @@ def sync_favor(conn):
                     safe_json(row['호감점수']),
                     row['호감도 현황'],
                     row['컴플리트'],
-                    mastodon_id
+                    row.get('mastodon_id')
                 ))
         conn.commit()
         print("✅ 호감도 시트 → 'favor' 테이블 동기화 완료")
