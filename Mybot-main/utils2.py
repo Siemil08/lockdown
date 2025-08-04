@@ -10,7 +10,7 @@ KST = pytz.timezone('Asia/Seoul')
 # DB 연결
 def get_conn():
     return pymysql.connect(
-        host='34.68.132.37', user='admin', password='ahrvysmswkehdghk', db='bot',
+        host='35.209.172.242', user='admin', password='password1212', db='bot',
         charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor
     )
 
