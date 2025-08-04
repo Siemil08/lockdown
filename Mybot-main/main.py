@@ -12,19 +12,6 @@ KST = pytz.timezone('Asia/Seoul')
 bypass_users = {}     # user_id: 입력한 키 저장
 current_key = None    # 현재 강제입장 키
 
-def is_operating_hour():
-    now = datetime.now(KST)
-    return now.hour == 21
-
-# 진입 키 설정
-def load_key(filepath='key.txt'):
-    try:
-        with open(filepath, 'r', encoding='utf-8') as f:
-            return f.read().strip()
-    except FileNotFoundError:
-        print("[경고] key.txt 파일이 없습니다.")
-        return None
-
 app = Flask(__name__)
 
 @app.route('/skill', methods=['POST'])
@@ -37,19 +24,6 @@ def skill():
         user_id = user_request.get('user', {}).get('id', '')
         user_input = user_request.get('utterance', '').strip()
         
-        # 입장 키 불러오기 
-        force_key = load_key()
-
-        # 운영시간 체크 (키 입력 시 우회 허용)
-        # ⏱ 운영 시간 외 진입 제한 (단, 키 입력 시 우회 허용)
-        if not is_operating_hour():
-            if user_input == force_key:
-                bypass_users[user_id] = force_key
-                return create_response("접속이 허용되었습니다.\n\n인증 또는 조사/정산 키워드를 입력해 주세요.")
-            
-            if bypass_users.get(user_id) != force_key:
-                return create_response("현재는 접속 가능한 시간이 아닙니다. 챗봇 이용 시간은 오후 9시부터 10시까지입니다.")
-
         # 카카오톡 자동 인증
         user_info = find_auth_by_field('userId', user_id)    
         
