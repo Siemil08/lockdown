@@ -3,7 +3,6 @@ import pymysql
 
 from coin_module import handle_balance, handle_coin_transfer, handle_coin_gain, load_coin
 from item_module import handle_gacha, handle_inventory, handle_item_search, handle_present, handle_gift, handle_item_sell
-from frichcon_module import handle_frichcon
 from util import clean_html_tags
 
 # ====== 마스토돈 인증 ======
