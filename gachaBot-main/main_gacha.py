@@ -8,16 +8,16 @@ from util import clean_html_tags
 
 # ====== 마스토돈 인증 ======
 mastodon = Mastodon(
-    access_token='vQ_VofuqH104TATDd76B246V22OPKcETlC2tFcOOjow',  # 토큰 변경 시 주의
-    api_base_url='https://www.myandu.site/'
+    access_token='	mov89dn66Grg_Ikrql6ZxOv-kPxxRaBE7xBV12ddEzU',  # 토큰 변경 시 주의
+    api_base_url='https://lockdownheaven.cloud/'
 )
 
 # ====== MySQL 연결 ======
 def get_conn():
     return pymysql.connect(
-        host='34.68.132.37',
+        host='35.209.172.242',
         user='admin',
-        password='ahrvysmswkehdghk',
+        password='password1212',
         db='bot',
         charset='utf8mb4',
         cursorclass=pymysql.cursors.DictCursor
