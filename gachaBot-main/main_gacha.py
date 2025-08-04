@@ -39,21 +39,21 @@ class GachaBotListener(StreamListener):
 
             # 명령어별 분기 처리
             if '[정산]' in content:
-                reply = handle_balance(conn, mastodon, username)
+                reply = handle_balance(conn, mastodon, mastodon_id)
             elif '[뽑기]' in content or '[가챠]' in content:
-                reply = handle_gacha(conn, username, content)
+                reply = handle_gacha(conn, mastodon_id, content)
             elif '[소지품]' in content or '[인벤토리]' in content or '[소지 아이템]' in content:
-                reply = handle_inventory(conn, username)
+                reply = handle_inventory(conn, mastodon_id)
             elif '[양도]' in content:
-                reply = handle_gift(conn, username, content)
+                reply = handle_gift(conn, mastodon_id, content)
             elif '[선물]' in content:
-                reply = handle_present(conn, username, content)
+                reply = handle_present(conn, giver_mastodon_id, content)
             elif '[코인 양도]' in content:
-                reply = handle_coin_transfer(conn, username, content)
+                reply = handle_coin_transfer(conn, giver_id, content)
             elif '[코인 획득]' in content:
-                reply = handle_coin_gain(conn, username, content)
+                reply = handle_coin_gain(conn, mastodon_id, content)
             elif '[아이템 매각]' in content or '[매각]' in content:
-                reply = handle_item_sell(conn, username, content)
+                reply = handle_item_sell(conn, mastodon_id, content)
             else:
                 return
                 
