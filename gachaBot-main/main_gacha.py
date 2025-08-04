@@ -30,7 +30,7 @@ class GachaBotListener(StreamListener):
 
         content = clean_html_tags(notification['status']['content'])
         username = notification['account']['display_name'].strip()
-        mastodon_id = notification['account']['acct']
+        acct = notification['account']['acct']
         status_id = notification['status']['id']
 
         conn = get_conn()
