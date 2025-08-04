@@ -5,17 +5,22 @@ import datetime
 import json
 from google.oauth2.service_account import Credentials
 
+# 구글 시트 키
 MAIN_SHEET_KEY = '1BiIDoNFD14mVIs2UwRUjsYwcp18DIEluSYGs2foD37s'
-LOG_STHEET_KTY = '1KnCGISum5xWLzmsfewSJyKDPoyC3BCXX9-EVCW4iuE0'
+LOG_SHEET_KEY = '1KnCGISum5xWLzmsfewSJyKDPoyC3BCXX9-EVCW4iuE0'
 
-# 데이터베이스 연결
+# DB 연결
 def get_conn():
     return pymysql.connect(
-        host='35.209.172.242', user='admin', password='password1212', db='bot',
-        charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor
+        host='35.209.172.242',
+        user='admin',
+        password='password1212',
+        db='bot',
+        charset='utf8mb4',
+        cursorclass=pymysql.cursors.DictCursor
     )
 
-# 안전한 변환 함수들
+# 안전한 데이터 변환 함수
 def safe_json(val):
     if val in [None, '', 'None']:
         return None
@@ -60,7 +65,7 @@ def safe_float(val, default=None):
     except (ValueError, TypeError):
         return default
 
-# 구글 시트 접근
+# 구글 시트 워크시트 접근
 def get_ws(sheet_key, sheet_name):
     creds = Credentials.from_service_account_file('service_account.json', scopes=[
         'https://spreadsheets.google.com/feeds',
@@ -166,27 +171,8 @@ def ensure_random_table_exists(cur):
     """)
 
 # 동기화 함수들
-def sync_josa(conn):
-    df = pd.DataFrame(get_ws('1AKF6DY4JatQCQcbatcjPqEyez-yk17X9SwFgZHrBPao', '조사').get_all_records())
-    df = df.where(pd.notnull(df), None).replace('', None)
-    with conn.cursor() as cur:
-        ensure_josa_table_exists(cur)
-        cur.execute("DELETE FROM 조사")
-        for row in df.to_dict(orient='records'):
-            cur.execute("""
-                INSERT INTO 조사 (선택경로, 장소1, 장소2, 장소3, 장소4, 장소5, 타겟,
-                조건, 조건2, 조건3, 출력지문, 선택지)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (
-                row.get('선택경로'), row.get('장소1'), row.get('장소2'), row.get('장소3'),
-                row.get('장소4'), row.get('장소5'), row.get('타겟'), row.get('조건'),
-                row.get('조건2'), row.get('조건3'), row.get('출력지문'), row.get('선택지')
-            ))
-    conn.commit()
-    print("✅ 조사(josa) 테이블 초기화 후 동기화 완료")
-
 def sync_auth(conn):
-    df = pd.DataFrame(get_ws('1AKF6DY4JatQCQcbatcjPqEyez-yk17X9SwFgZHrBPao', '인증').get_all_records())
+    df = pd.DataFrame(get_ws(MAIN_SHEET_KEY, '인증').get_all_records())
     if df.empty:
         print("❗ 인증 시트에 데이터가 없습니다.")
         return
@@ -224,21 +210,21 @@ def sync_auth(conn):
     print("✅ 인증(auth) 테이블 초기화 후 동기화 완료")
 
 def sync_josa(conn):
-    df = pd.DataFrame(get_ws('1AKF6DY4JatQCQcbatcjPqEyez-yk17X9SwFgZHrBPao', '조사').get_all_records())
-    df = df.where(pd.notnull(df), None)
-    df = df.replace('', None)
+    df = pd.DataFrame(get_ws(MAIN_SHEET_KEY, '조사').get_all_records())
+    df = df.where(pd.notnull(df), None).replace('', None)
     with conn.cursor() as cur:
         ensure_josa_table_exists(cur)
         cur.execute("DELETE FROM 조사")
         for row in df.to_dict(orient='records'):
             cur.execute("""
-                INSERT INTO 조사 (선택경로, 장소1, 장소2, 장소3, 장소4, 장소5, 타겟,
-                조건, 조건2, 조건3, 출력지문, 선택지)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO 조사 (
+                    선택경로, 장소1, 장소2, 장소3, 장소4, 장소5,
+                    타겟, 조건, 조건2, 조건3, 출력지문, 선택지
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
-                row.get('선택경로'), row.get('장소1'), row.get('장소2'), row.get('장소3'), row.get('장소4'),
-                row.get('장소5'), row.get('타겟'), row.get('조건'), row.get('조건2'),
-                row.get('조건3'), row.get('출력지문'), row.get('선택지')
+                row.get('선택경로'), row.get('장소1'), row.get('장소2'), row.get('장소3'),
+                row.get('장소4'), row.get('장소5'), row.get('타겟'), row.get('조건'),
+                row.get('조건2'), row.get('조건3'), row.get('출력지문'), row.get('선택지')
             ))
     conn.commit()
     print("✅ 조사(josa) 테이블 초기화 후 동기화 완료")
@@ -342,6 +328,11 @@ def run():
     try:
         with conn.cursor() as cur:
             ensure_total_log_table_exists(cur)
+            ensure_auth_table_exists(cur)
+            ensure_settlements_table_exists(cur)
+            ensure_favor_table_exists(cur)
+            ensure_gacha_table_exists(cur)
+            ensure_josa_table_exists(cur)
             ensure_random_table_exists(cur)
         sync_auth(conn)
         sync_settlement(conn)
