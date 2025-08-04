@@ -132,7 +132,7 @@ def ensure_favor_table_exists(cur):
             dislike_items TEXT,
             favor_score JSON,
             favor_status VARCHAR(64),
-            complete BOOLEAN
+            complete text
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
 
@@ -185,8 +185,8 @@ def sync_auth(conn):
                 INSERT INTO auth (
                     id_code, name, userId, job, height,
                     power, obs, luck, wilpower, san,
-                    coin, gain_path, auth_time
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    coin, gain_path, auth_time, mastodon_id
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     name=VALUES(name),
                     userId=VALUES(userId),
@@ -199,7 +199,8 @@ def sync_auth(conn):
                     san=VALUES(san),
                     coin=VALUES(coin),
                     gain_path=VALUES(gain_path),
-                    auth_time=VALUES(auth_time)
+                    auth_time=VALUES(auth_time),
+                    mastodon_id
             """, (
                     row.get('id_code'),
                     row.get('Name'),
@@ -213,7 +214,8 @@ def sync_auth(conn):
                     safe_int(row.get('행운')),
                     safe_int(row.get('소지금')),
                     row.get('획득 경로'),
-                    safe_datetime(row.get('인증시각'))
+                    safe_datetime(row.get('인증시각')),
+                    mastodon_id
             ))
     conn.commit()
     print("✅ 인증(auth) 테이블 초기화 후 동기화 완료")
@@ -267,8 +269,8 @@ def sync_settlement(conn):
                 cur.execute("""
                     REPLACE INTO settlements (
                         name, inventory, sell_pending, tweet_count,
-                        pending_count, last_tweet_count, total_coin, updated_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        pending_count, last_tweet_count, total_coin, updated_at, mastodon_id
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     row['Name'],
                     row['소지품'],
@@ -277,7 +279,8 @@ def sync_settlement(conn):
                     safe_int(row['정산 대기']),
                     safe_int(row['정산 툿수']),
                     safe_int(row['지불 코인']),
-                    safe_datetime(row['마지막 정산'])
+                    safe_datetime(row['마지막 정산']),
+                    mastodon_id
                 ))
         conn.commit()
         print("✅ 정산 시트 → 'settlements' 테이블 동기화 완료")
@@ -297,15 +300,16 @@ def sync_favor(conn):
                 cur.execute("""
                     REPLACE INTO favor (
                         name, favor_items, dislike_items, favor_score,
-                        favor_status, complete
-                    ) VALUES (%s, %s, %s, %s, %s, %s)
+                        favor_status, complete, mastodon_id
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """, (
                     row['Name'],
                     row['호감 아이템'],
                     row['불호 아이템'],
                     safe_json(row['호감점수']),
                     row['호감도 현황'],
-                    bool(row['컴플리트'])
+                    row['컴플리트'],
+                    mastodon_id
                 ))
         conn.commit()
         print("✅ 호감도 시트 → 'favor' 테이블 동기화 완료")
