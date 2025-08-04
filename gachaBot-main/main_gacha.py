@@ -56,7 +56,8 @@ class GachaBotListener(StreamListener):
             elif '[아이템 매각]' in content or '[매각]' in content:
                 reply = handle_item_sell(conn, username, content)
             else:
-                reply = handle_frichcon(conn, username, content)
+                reply = "잘못된 입력입니다. 다시 입력해주세요. 지원되는 명령어: [정산], [가챠], [소지품], [양도], [선물], [코인 양도], [코인 획득], [매각]"
+                
 
             if reply:
                 # 문자열 분할 여부 판단
