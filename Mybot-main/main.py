@@ -12,6 +12,15 @@ KST = pytz.timezone('Asia/Seoul')
 bypass_users = {}     # user_id: 입력한 키 저장
 current_key = None    # 현재 강제입장 키
 
+# 진입 키 설정
+def load_key(filepath='key.txt'):
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        print("[경고] key.txt 파일이 없습니다.")
+        return None
+
 app = Flask(__name__)
 
 @app.route('/skill', methods=['POST'])
@@ -23,6 +32,9 @@ def skill():
         user_request = data.get('userRequest', {})
         user_id = user_request.get('user', {}).get('id', '')
         user_input = user_request.get('utterance', '').strip()
+        
+        # 입장 키 불러오기 
+        force_key = load_key()
         
         # 카카오톡 자동 인증
         user_info = find_auth_by_field('userId', user_id)    
@@ -50,7 +62,26 @@ def skill():
         # 오래된 인증 시간 재갱신
         if is_long_time_no_see(user_info.get('auth_time', '')):
             update_user_auth(user_id, id_code)
+            
+        # "테스트" 입력 시 입장 키를 입력받고, 키값이 맞으면 비일상조사로 설정
+        if user_input == "테스트":
+            msg = "입장 키를 입력해 주세요."
+            log_all(user_id, id_code, name, "[테스트-입장]", "test", "", msg)
+            return create_response(msg)
 
+        # 키 입력받고 검증
+        if user_id in bypass_users and bypass_users[user_id] == force_key:
+            survey_type = "비일상조사"  # 키가 맞으면 비일상조사로 설정
+            msg = "비일상조사 테스트에 진입합니다. 조사를 입력하여 테스트를 진행해 주세요."
+            log_all(user_id, id_code, name, "[테스트-입장-성공]", "test", "", msg)
+            return create_response(msg)
+
+        if user_input == force_key:  # 키 입력이 정확하면 bypass_users에 추가
+            bypass_users[user_id] = force_key
+            msg = "입장 키가 확인되었습니다. 이제 비일상조사로 진행됩니다. 조사를 입력해 주세요."
+            log_all(user_id, id_code, name, "[테스트-키입력-성공]", "test", "", msg)
+            return create_response(msg)
+                       
         if user_input == "인증":
             msg = "인증 코드를 입력해 주세요."
             type_ = "auth"
