@@ -59,7 +59,10 @@ def skill():
         type_ = status['type']
         select_path = status['select_path']
         survey_type = get_survey_type_by_day()
-
+        
+        # 디버그: survey_type 출력
+        print(f"DEBUG: survey_type={survey_type}")
+        
         # 오래된 인증 시간 재갱신
         if is_long_time_no_see(user_info.get('auth_time', '')):
             update_user_auth(user_id, id_code)
@@ -72,24 +75,45 @@ def skill():
 
         # 키 입력받고 검증
         if user_id in bypass_users and bypass_users[user_id] == force_key:
-            print(f"DEBUG: user_input={user_input}, bypass_users={bypass_users}, force_key={force_key}")  # 디버그 메시지 추가
+            # 디버그 메시지: bypass_users 상태와 force_key 출력
+            print(f"DEBUG: [키 검증] user_input={user_input}, user_id={user_id}, bypass_users={bypass_users}, force_key={force_key}")
+            
             original_survey_type = survey_type  # 비일상조사 시작 전, 원래 survey_type을 저장
             survey_type = "비일상조사"  # 키가 맞으면 비일상조사로 설정
+            
+            # 디버그 메시지: survey_type 변경 확인
+            print(f"DEBUG: [survey_type 변경] original_survey_type={original_survey_type}, survey_type={survey_type}")
+            
             msg = "비일상조사 테스트에 진입합니다. 조사를 입력하여 테스트를 진행해 주세요."
             
             # 조사에 진입한 후에는 bypass_users에서 삭제하여 반복되지 않게 처리
             del bypass_users[user_id]  # 키 사용 후 삭제
+            
+            # 디버그 메시지: bypass_users에서 삭제 확인
+            print(f"DEBUG: [bypass_users 삭제] user_id={user_id}, bypass_users={bypass_users}")
         
             log_all(user_id, id_code, name, "[테스트-입장-성공]", "test", "", msg)
             return create_response(msg)
 
         if user_input == force_key:  # 키 입력이 정확하면 bypass_users에 추가
+            # 디버그 메시지: force_key 입력된 상태 확인
+            print(f"DEBUG: [입력 키 검증] user_input={user_input}, force_key={force_key}")
+            
             bypass_users[user_id] = force_key
             original_survey_type = survey_type  # 비일상조사로 진입하기 전 survey_type 저장
             survey_type = "비일상조사"
+            
+            # 디버그 메시지: survey_type 변경 확인
+            print(f"DEBUG: [survey_type 변경] original_survey_type={original_survey_type}, survey_type={survey_type}")
+            
             msg = "입장 키가 확인되었습니다. 이제 비일상조사로 진행됩니다. 조사를 입력해 주세요."
+            
+            # 디버그 메시지: bypass_users 상태 확인
+            print(f"DEBUG: [bypass_users 추가] user_id={user_id}, bypass_users={bypass_users}")
+        
             log_all(user_id, id_code, name, "[테스트-키입력-성공]", "test", "", msg)
             return create_response(msg)
+
 
         if user_input == "인증":
             msg = "인증 코드를 입력해 주세요."
