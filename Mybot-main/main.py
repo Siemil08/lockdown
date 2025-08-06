@@ -9,8 +9,9 @@ import pytz
 
 # KST 설정
 KST = pytz.timezone('Asia/Seoul')
-bypass_users = {}     # user_id: 입력한 키 저장
-current_key = None    # 현재 강제입장 키
+bypass_users = {}  # user_id: 입력한 키 저장
+current_key = None  # 현재 강제입장 키
+original_survey_type = None  # 원래 survey_type 저장
 
 # 진입 키 설정
 def load_key(filepath='key.txt'):
@@ -25,107 +26,25 @@ app = Flask(__name__)
 
 @app.route('/skill', methods=['POST'])
 def skill():
-    global current_key
+    global current_key, original_survey_type  # 원래 survey_type을 global로 관리
     conn = None
     try:
         data = request.json
         user_request = data.get('userRequest', {})
         user_id = user_request.get('user', {}).get('id', '')
         user_input = user_request.get('utterance', '').strip()
-        
+
         # 입장 키 불러오기 
         force_key = load_key()
-        
+
         # 카카오톡 자동 인증
         user_info = find_auth_by_field('userId', user_id)    
-        
+
         if not user_info or user_input.isdigit():
             auth_row = find_auth_by_id_code(user_input)
             if auth_row:
                 name = auth_row.get('name', '사용자')
-                id_code = user_input
-                update_user_auth(user_id, id_code)
-                msg = f"{name}님 인증 완료!\n무엇을 진행하시겠습니까?\n\n▶ 조사"
-                log_all(user_id, id_code, name, "[인증-자동]", "auth", "", msg)
-                return create_response(msg)
-            elif not user_info:
-                return require_auth(user_id)
-
-        # 인증 완료된 사용자 정보
-        id_code = user_info['id_code']
-        name = user_info['name']
-        status = get_user_status(user_id)
-        type_ = status['type']
-        select_path = status['select_path']
-        survey_type = get_survey_type_by_day()
-
-        # 오래된 인증 시간 재갱신
-        if is_long_time_no_see(user_info.get('auth_time', '')):
-            update_user_auth(user_id, id_code)
-            
-        # "테스트" 입력 시 입장 키를 입력받고, 키값이 맞으면 비일상조사로 설정
-        if user_input == "테스트":
-            msg = "입장 키를 입력해 주세요."
-            log_all(user_id, id_code, name, "[테스트-입장]", "test", "", msg)
-            return create_response(msg)
-
-        # 키 입력받고 검증
-        if user_id in bypass_users and bypass_users[user_id] == force_key:
-            # 키가 맞으면 비일상조사로 설정하고, 조사 시작
-            survey_type = "비일상조사"  
-            msg = "비일상조사 테스트에 진입합니다. 조사를 입력하여 테스트를 진행해 주세요."
-            log_all(user_id, id_code, name, "[테스트-입장-성공]", "test", "", msg)
-
-            # 조사 트리 시작 (여기서 실제로 조사 트리 로직을 실행)
-            type_ = "investigate_tree"
-            select_path = ""
-            msg, new_path = investigate_tree_logic(select_path, "", user_info, survey_type=survey_type)
-            log_all(user_id, id_code, name, "[조사-시작]", type_, new_path, msg)
-            return create_response(msg)
-
-        if user_input == force_key:  # 키 입력이 정확하면 bypass_users에 추가
-            bypass_users[user_id] = force_key
-            msg = "입장 키가 확인되었습니다. 이제 비일상조사로 진행됩니다. 조사를 입력해 주세요."
-            log_all(user_id, id_code, name, "[테스트-키입력-성공]", "test", "", msg)
-            return create_response(msg)
-                       
-        if user_input == "인증":
-            msg = "인증 코드를 입력해 주세요."
-            type_ = "auth"
-            select_path = ""
-            log_all(user_id, id_code, name, '[인증-요청]', type_, select_path, msg)
-            return create_response(msg)
-
-        if user_input == "조사":
-            type_ = "investigate_tree"
-            select_path = ""
-            msg, new_path = investigate_tree_logic(select_path, "", user_info, survey_type=survey_type)
-            log_all(user_id, id_code, name, "[조사-시작]", type_, new_path, msg)
-            return create_response(msg)
-
-        if user_input == "정산":
-            type_ = "settle_tree"  # 정산 후 인증 상태로 되돌림
-            select_path = ""
-            msg = calculate_auto_settlement(id_code, name)
-            log_all(user_id, id_code, name, "[자동정산]", type_, "", msg)
-            update_user_auth(user_id, id_code)
-            return create_response(msg)
-
-        if user_input == "소지금":
-            msg = check_coin_balance(user_id)
-            log_all(user_id, id_code, name, "[소지금 조회]", "check_coin", "", msg)
-            return create_response(msg)
-
-        if type_ == 'auth':
-            msg = "무엇을 진행하시겠습니까?\n\n▶ 조사"
-            log_all(user_id, id_code, name, "[인증-유지]", type_, "", msg)
-            return create_response(msg)
-
-        elif type_ == 'investigate_tree':
-            processed_input = extract_bracket_content(user_input) or user_input.strip()
-
-            if processed_input in ["종료", "조사종료", "그만", "메인으로"]:
-                msg = "조사를 종료합니다.\n무엇을 진행하시겠습니까?\n\n▶ 조사"
+                id산"
                 log_all(user_id, id_code, name, "[조사트리-종료]", type_, "", msg)
                 return create_response(msg)
 
