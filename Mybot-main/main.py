@@ -93,7 +93,8 @@ def skill():
             log_all(user_id, id_code, name, '[인증-요청]', type_, select_path, msg)
             return create_response(msg)
 
-        if user_input == "조사":
+        if user_input == "조사" or survey_type == "비일상조사":
+            # 비일상조사일 경우 조사로 직접 진입
             type_ = "investigate_tree"
             select_path = ""
             msg, new_path = investigate_tree_logic(select_path, "", user_info, survey_type=survey_type)
