@@ -118,7 +118,7 @@ def skill():
 
         if user_input == "조사":
             msg, new_path = investigate_tree_logic(select_path, '', user_info, survey_type)
-            log_all(user_id, id_code, name, f"[{survey_type} 시작]", "investigate", "", msg)
+            log_all(user_id, id_code, name, f"[{survey_type} 시작]", "investigate_tree", "", msg)
             print(f"[DEBUG] 조사 시작: new_path='{new_path}'")
             return create_response(msg)
 
