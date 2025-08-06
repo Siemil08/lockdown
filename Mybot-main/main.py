@@ -56,12 +56,6 @@ def skill():
         if is_long_time_no_see(user_info.get('auth_time', '')):
             update_user_auth(user_id, id_code)
 
-        # "테스트" 입력 시 입장 키 요청
-        if user_input == "테스트":
-            msg = "입장 키를 입력해 주세요."
-            log_all(user_id, id_code, name, "[테스트-입장]", "test", "", msg)
-            return create_response(msg)
-
         # 강제 입장 키 입력 검증 및 bypass_users에 추가
         if user_input == force_key:
             bypass_users[user_id] = force_key
