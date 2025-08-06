@@ -83,7 +83,6 @@ def skill():
             log_all(user_id, id_code, name, "[테스트-입장-성공]", "test", "", msg)
             return create_response(msg)
 
-
         if user_input == force_key:  # 키 입력이 정확하면 bypass_users에 추가
             bypass_users[user_id] = force_key
             original_survey_type = survey_type  # 비일상조사로 진입하기 전 survey_type 저장
