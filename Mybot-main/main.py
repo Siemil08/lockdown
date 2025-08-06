@@ -96,24 +96,27 @@ def skill():
             return create_response(msg)
 
         if user_input == force_key:  # 키 입력이 정확하면 bypass_users에 추가
-            # 디버그 메시지: force_key 입력된 상태 확인
             print(f"DEBUG: [입력 키 검증] user_input={user_input}, force_key={force_key}")
             
             bypass_users[user_id] = force_key
-            original_survey_type = survey_type  # 비일상조사로 진입하기 전 survey_type 저장
+            original_survey_type = survey_type
             survey_type = "비일상조사"
             
-            # 디버그 메시지: survey_type 변경 확인
             print(f"DEBUG: [survey_type 변경] original_survey_type={original_survey_type}, survey_type={survey_type}")
-            
-            msg = "입장 키가 확인되었습니다. 이제 비일상조사로 진행됩니다. 조사를 입력해 주세요."
-            
-            # 디버그 메시지: bypass_users 상태 확인
             print(f"DEBUG: [bypass_users 추가] user_id={user_id}, bypass_users={bypass_users}")
         
-            log_all(user_id, id_code, name, "[테스트-키입력-성공]", "test", "", msg)
+            # 조사 트리 로직 직접 호출
+            select_path = ''  # 조사 시작이므로 초기화
+            msg, new_path = investigate_tree_logic(select_path, '', auth_row, survey_type)
+        
+            # 로그
+            log_all(user_id, id_code, name, "[테스트-조사시작]", "test", "", msg)
+        
+            # bypass_users에서 삭제하여 재사용 방지
+            del bypass_users[user_id]
+            print(f"DEBUG: [bypass_users 삭제] user_id={user_id}, bypass_users={bypass_users}")
+        
             return create_response(msg)
-
 
         if user_input == "인증":
             msg = "인증 코드를 입력해 주세요."
