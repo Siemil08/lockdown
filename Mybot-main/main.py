@@ -72,12 +72,17 @@ def skill():
 
         # 키 입력받고 검증
         if user_id in bypass_users and bypass_users[user_id] == force_key:
-            print(f"DEBUG: user_id {user_id} bypass_users={bypass_users}")  # 디버그: bypass_users의 상태 출력
+            print(f"DEBUG: user_input={user_input}, bypass_users={bypass_users}, force_key={force_key}")  # 디버그 메시지 추가
             original_survey_type = survey_type  # 비일상조사 시작 전, 원래 survey_type을 저장
             survey_type = "비일상조사"  # 키가 맞으면 비일상조사로 설정
             msg = "비일상조사 테스트에 진입합니다. 조사를 입력하여 테스트를 진행해 주세요."
+            
+            # 조사에 진입한 후에는 bypass_users에서 삭제하여 반복되지 않게 처리
+            del bypass_users[user_id]  # 키 사용 후 삭제
+        
             log_all(user_id, id_code, name, "[테스트-입장-성공]", "test", "", msg)
             return create_response(msg)
+
 
         if user_input == force_key:  # 키 입력이 정확하면 bypass_users에 추가
             bypass_users[user_id] = force_key
