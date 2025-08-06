@@ -95,24 +95,29 @@ def skill():
             log_all(user_id, id_code, name, "[테스트-입장-성공]", "test", "", msg)
             return create_response(msg)
 
-        if user_input == force_key:  # 키 입력이 정확하면 bypass_users에 추가
+        if user_input == force_key:
             print(f"DEBUG: [입력 키 검증] user_input={user_input}, force_key={force_key}")
             
             bypass_users[user_id] = force_key
-            original_survey_type = survey_type
-            survey_type = "비일상조사"
-            
-            print(f"DEBUG: [survey_type 변경] original_survey_type={original_survey_type}, survey_type={survey_type}")
             print(f"DEBUG: [bypass_users 추가] user_id={user_id}, bypass_users={bypass_users}")
         
-            # 조사 트리 로직 직접 호출
-            select_path = ''  # 조사 시작이므로 초기화
-            msg, new_path = investigate_tree_logic(select_path, '', auth_row, survey_type)
+            # 인증 정보 가져오기
+            user_info = find_auth_by_field('userId', user_id)
+            if not user_info:
+                return create_response("인증 정보가 없습니다. 먼저 인증을 진행해 주세요.")
         
-            # 로그
-            log_all(user_id, id_code, name, "[테스트-조사시작]", "test", "", msg)
+            id_code = user_info.get('id_code')
+            name = user_info.get('name')
         
-            # bypass_users에서 삭제하여 재사용 방지
+            # 여기서 비일상조사 시작
+            survey_type = "비일상조사"
+            select_path = ''
+            msg, new_path = investigate_tree_logic(select_path, '', user_info, survey_type)
+        
+            # 로그 기록
+            log_all(user_id, id_code, name, "[비일상조사-우회시작]", "test", "", msg)
+        
+            # 우회 종료 처리
             del bypass_users[user_id]
             print(f"DEBUG: [bypass_users 삭제] user_id={user_id}, bypass_users={bypass_users}")
         
@@ -125,12 +130,17 @@ def skill():
             log_all(user_id, id_code, name, '[인증-요청]', type_, select_path, msg)
             return create_response(msg)
 
-        if user_input == "조사" or survey_type == "비일상조사":
-            # 비일상조사일 경우 조사로 직접 진입
-            type_ = "investigate_tree"
-            select_path = ""
-            msg, new_path = investigate_tree_logic(select_path, "", user_info, survey_type=survey_type)
-            log_all(user_id, id_code, name, "[조사-시작]", type_, new_path, msg)
+        # 조사 시작 전에 bypass 여부 확인
+        if user_input == "조사":
+            if user_id in bypass_users:
+                survey_type = "비일상조사"
+                print(f"DEBUG: [우회된 유저 비일상조사 시작] user_id={user_id}")
+                del bypass_users[user_id]  # 한 번만 우회 가능하게
+            else:
+                survey_type = get_survey_type_by_day()
+        
+            msg, new_path = investigate_tree_logic(select_path, '', user_info, survey_type)
+            log_all(user_id, id_code, name, f"[{survey_type} 시작]", "investigate", "", msg)
             return create_response(msg)
 
         if user_input == "정산":
