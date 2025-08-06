@@ -71,9 +71,16 @@ def skill():
 
         # 키 입력받고 검증
         if user_id in bypass_users and bypass_users[user_id] == force_key:
-            survey_type = "비일상조사"  # 키가 맞으면 비일상조사로 설정
+            # 키가 맞으면 비일상조사로 설정하고, 조사 시작
+            survey_type = "비일상조사"  
             msg = "비일상조사 테스트에 진입합니다. 조사를 입력하여 테스트를 진행해 주세요."
             log_all(user_id, id_code, name, "[테스트-입장-성공]", "test", "", msg)
+
+            # 조사 트리 시작 (여기서 실제로 조사 트리 로직을 실행)
+            type_ = "investigate_tree"
+            select_path = ""
+            msg, new_path = investigate_tree_logic(select_path, "", user_info, survey_type=survey_type)
+            log_all(user_id, id_code, name, "[조사-시작]", type_, new_path, msg)
             return create_response(msg)
 
         if user_input == force_key:  # 키 입력이 정확하면 bypass_users에 추가
