@@ -70,7 +70,9 @@ def is_operating_hour():
 def get_survey_type_by_day():
     now = datetime.now(KST)
     weekday = now.weekday()
-    if weekday in [4, 5]:
+
+    # 금요일 오후 9시 이후부터 토요일 밤 11시 59분 59초까지 비일상조사
+    if (weekday == 4 and now.hour >= 21) or (weekday == 5):
         return '비일상조사'
     else:
         return '일상조사'
