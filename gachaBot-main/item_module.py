@@ -87,7 +87,7 @@ def handle_gacha(conn, mastodon_id, content):
 
         # 3) 뽑기 횟수 파싱
         match = re.search(r'(?:\[(?:뽑기|가챠)\]\s*(\d+)?\s*(회|번|연)?|(\d+)\s*(회|번|연)\s*연속?\s*\[(?:뽑기|가챠)\])', content)
-        count = int(match.group(1) or match.group(3) or 1)
+        count = int(match.group(1) or match.group(3) or 1) * 2
 
         if coin < count:
             return split_message(f"{username}님, 소지금이 부족합니다. (보유 코인: {coin}, 필요 코인: {count})")
@@ -220,7 +220,7 @@ def handle_item_sell(conn, mastodon_id, content):
     updated_inventory_str = ', '.join(updated_item_name)
 
     # 보상 계산
-    sell_bundle_size = 3
+    sell_bundle_size = 5
     current_sold_count = len(sold_item_name)
     total_sold = pending_item_name + current_sold_count
     total_reward = total_sold // sell_bundle_size
