@@ -8,7 +8,7 @@ from util import clean_html_tags
 # ====== 마스토돈 인증 ======
 mastodon = Mastodon(
     access_token='mov89dn66Grg_Ikrql6ZxOv-kPxxRaBE7xBV12ddEzU',  # 토큰 변경 시 주의
-    api_base_url='https://https://lockdownheaven.duckdns.org/'
+    api_base_url='https://lockdownheaven.duckdns.org/'
 )
 
 # ====== MySQL 연결 ======
