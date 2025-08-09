@@ -87,10 +87,11 @@ def handle_gacha(conn, mastodon_id, content):
 
         # 3) 뽑기 횟수 파싱
         match = re.search(r'(?:\[(?:뽑기|가챠)\]\s*(\d+)?\s*(회|번|연)?|(\d+)\s*(회|번|연)\s*연속?\s*\[(?:뽑기|가챠)\])', content)
-        count = int(match.group(1) or match.group(3) or 1) * 2
+        count = int(match.group(1) or match.group(3) or 1)
+        cost = count * 2  # 1회당 2코인
 
-        if coin < count:
-            return split_message(f"{username}님, 소지금이 부족합니다. (보유 코인: {coin}, 필요 코인: {count})")
+        if coin < cost:
+            return split_message(f"{username}님, 소지금이 부족합니다. (보유 코인: {coin}, 필요 코인: {cost})")
 
         # 4) 랜덤 아이템 목록 조회
         cursor.execute("SELECT item_name, answer_list FROM gacha WHERE item_name IS NOT NULL AND item_name != ''")
